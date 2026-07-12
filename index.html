@@ -1,0 +1,2073 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Escritório Virtual — DARO Tech</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0d16">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DARO Tech">
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0d16;
+    --panel: #131a2c;
+    --panel-border: rgba(63, 208, 255, 0.35);
+    --cyan: #3fd0ff;
+    --cyan-dark: #157096;
+    --coral: #ff9152;
+    --coral-dark: #a34a1c;
+    --text: #eaf2f7;
+    --text-dim: #8fa0c2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Inter', system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    background-image: radial-gradient(circle at 20% 0%, rgba(63,208,255,0.07), transparent 45%);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 14px 12px;
+  }
+  #app { max-width: 1800px; width: 100%; position: relative; }
+  header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px; }
+  header h1 { font-family:'Space Grotesk', sans-serif; font-size: 20px; margin: 0; font-weight: 700; letter-spacing:0.01em; }
+  header p { font-size: 12px; color:var(--text-dim); margin: 4px 0 0; }
+
+  .chamfer {
+    clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  }
+  .chamfer-sm {
+    clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+  }
+
+  #statusBadge, #totalOnlineBadge {
+    background:var(--panel); border:1px solid var(--panel-border); padding:7px 16px;
+    font-family:'Space Grotesk', sans-serif; font-size:12px; font-weight:600; letter-spacing:0.03em;
+    color:var(--cyan); white-space:nowrap;
+  }
+  .layout { display:flex; flex-direction:column; gap:16px; }
+  canvas { background:#c9c2e8; display:block; max-width:100%; box-shadow: 0 10px 30px rgba(0,0,0,0.45); }
+  .card {
+    background:var(--panel); border:1px solid var(--panel-border); padding:16px 16px 14px;
+    box-shadow: inset 0 0 0 1px rgba(63,208,255,0.05);
+  }
+  .card h2 {
+    font-family:'Space Grotesk', sans-serif; font-size:12px; font-weight:600; margin:0 0 8px;
+    color:var(--cyan); text-transform:uppercase; letter-spacing:0.08em;
+  }
+  .emotePicker {
+    display:none; position:absolute; top:calc(100% + 6px); right:0; z-index:20;
+    background:var(--panel); border:1px solid var(--panel-border);
+    padding:8px; grid-template-columns:repeat(4, 1fr); gap:2px;
+    box-shadow:0 8px 20px rgba(0,0,0,0.4);
+  }
+  .emotePicker.open { display:grid; }
+  .emoteOption {
+    background:transparent; border:none; font-size:20px; cursor:pointer;
+    padding:6px; border-radius:6px;
+  }
+  .emoteOption:hover { background:rgba(63,208,255,0.15); }
+  .emoteFixarRow {
+    grid-column:1 / -1; display:flex; align-items:center; gap:6px;
+    color:var(--text-dim); font-size:11px; font-family:'Space Grotesk', sans-serif;
+    padding:6px 4px 2px; border-top:1px solid var(--panel-border); margin-top:4px; cursor:pointer;
+  }
+  .emoteFixarRow input { cursor:pointer; }
+  .emoteLimparBtn {
+    grid-column:1 / -1; background:none; border:none; color:var(--coral);
+    font-size:11px; font-family:'Space Grotesk', sans-serif; font-weight:600;
+    cursor:pointer; padding:4px; text-align:center;
+  }
+  .emoteLimparBtn:hover { text-decoration:underline; }
+
+  .telaCompartilhadaOverlay {
+    display:none; position:absolute; left:8%; top:8%; width:84%; height:74%; z-index:8;
+    background:rgba(6,8,14,0.92); border:1px solid var(--panel-border);
+    flex-direction:column; padding:10px; box-shadow:0 10px 40px rgba(0,0,0,0.6);
+  }
+  .telaCompartilhadaOverlay.open { display:flex; }
+  .telaCompartilhadaHeader {
+    display:flex; justify-content:space-between; align-items:center;
+    color:var(--cyan); font-family:'Space Grotesk', sans-serif; font-size:12px; font-weight:600;
+    margin-bottom:8px;
+  }
+  #telaCompartilhadaVideo { flex:1; width:100%; height:100%; object-fit:contain; background:#000; }
+
+  .youtubeBtn {
+    display:none; position:absolute; left:14px; top:14px; z-index:5;
+    background:#ff0000; color:#ffffff; text-decoration:none;
+    font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:12px;
+    padding:8px 14px; border-radius:6px; align-items:center; gap:6px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.4);
+  }
+  .youtubeBtn.show { display:flex; }
+
+  .knockBtn {
+    display:none; position:absolute; left:50%; bottom:14px; transform:translateX(-50%); z-index:6;
+    background:var(--coral); color:#2b0f00; border:none; border-radius:999px;
+    font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:13px;
+    padding:9px 18px; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,0.4);
+  }
+  .knockBtn.show { display:block; }
+
+  .avisoFixado {
+    display:none; position:absolute; left:50%; top:14px; transform:translateX(-50%); z-index:7;
+    background:#ffd166; color:#3a2a00; border-radius:8px;
+    font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:13px;
+    padding:8px 16px; align-items:center; gap:10px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.4); max-width:80%;
+  }
+  .avisoFixado.show { display:flex; }
+  #avisoFixadoTexto { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #avisoFixadoFechar {
+    background:none; border:none; cursor:pointer; font-weight:700; color:#3a2a00;
+    font-size:14px; flex-shrink:0;
+  }
+
+  .bateuNaPortaBanner {
+    display:none; position:absolute; left:50%; top:14px; transform:translateX(-50%); z-index:20;
+    background:var(--coral); color:#2b0f00; border-radius:8px;
+    font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:13px;
+    padding:9px 18px; box-shadow:0 4px 14px rgba(0,0,0,0.4); white-space:nowrap;
+  }
+  .bateuNaPortaBanner.show { display:block; }
+
+  .chatFloating {
+    position:absolute; right:14px; bottom:14px; z-index:5;
+    display:flex; flex-direction:column; align-items:flex-end; gap:8px;
+    max-width:300px; width:calc(100% - 28px);
+  }
+  .chatFloatingBody {
+    display:none; flex-direction:column; width:100%;
+    background:var(--panel); border:1px solid var(--panel-border);
+    padding:12px; max-height:280px;
+  }
+  .chatFloatingBody.open { display:flex; }
+  .chatToggleBtn {
+    background:#ffffff; color:#0a0d16; border:none; border-radius:999px;
+    padding:9px 18px; font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:13px;
+    display:flex; align-items:center; gap:8px; cursor:pointer;
+    box-shadow:0 4px 14px rgba(0,0,0,0.4);
+  }
+  .chatRoomInfo {
+    background:#ffffff; color:#0a0d16; border:none; border-radius:16px;
+    font-family:'Space Grotesk', sans-serif; font-size:11px; font-weight:700;
+    padding:6px 14px; letter-spacing:0.02em; max-width:100%; text-align:right;
+    box-shadow:0 4px 14px rgba(0,0,0,0.4);
+  }
+  #chatLog { flex:1; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:6px; padding-right:4px; max-height:190px; }
+  .msg { padding:7px 12px; max-width:85%; line-height:1.4; }
+  .msg .author { font-family:'Space Grotesk', sans-serif; font-size:10px; opacity:0.7; margin-bottom:2px; letter-spacing:0.02em; }
+  .msg.theirs { align-self:flex-start; background:#1c2540; border:1px solid rgba(63,208,255,0.25); color:#e3ecf7; }
+  .msg.mine { align-self:flex-end; background:rgba(255,145,82,0.18); border:1px solid rgba(255,145,82,0.5); color:#ffe3ce; }
+  .chatRow { display:flex; gap:8px; margin-top:10px; }
+  #chatInput, #nameInput {
+    flex:1; min-width:0; background:#080b13; border:1px solid var(--panel-border); border-radius:5px;
+    padding:9px 12px; color:var(--text); font-size:13px; outline:none; font-family:'Inter', sans-serif;
+  }
+  #chatInput:focus, #nameInput:focus { border-color:var(--cyan); }
+
+  .btn-game {
+    font-family:'Space Grotesk', sans-serif; font-weight:700; letter-spacing:0.02em;
+    border-radius:4px; cursor:pointer; font-size:13px; padding:9px 18px;
+    transition:transform .07s, box-shadow .07s;
+  }
+  .btn-game:active { transform:translateY(3px); }
+
+  #sendBtn, #enterBtn {
+    background:var(--cyan); border:2px solid var(--cyan-dark); color:#04141c;
+    box-shadow:0 4px 0 var(--cyan-dark);
+  }
+  #sendBtn:active, #enterBtn:active { box-shadow:0 1px 0 var(--cyan-dark); }
+
+  #leaveBtn {
+    background:var(--coral); border:2px solid var(--coral-dark); color:#2b0f00;
+    box-shadow:0 4px 0 var(--coral-dark); padding:7px 16px;
+  }
+  #leaveBtn:active { box-shadow:0 1px 0 var(--coral-dark); }
+
+  #muteBtn {
+    background:var(--panel); border:2px solid var(--panel-border); color:var(--cyan);
+    box-shadow:0 4px 0 rgba(63,208,255,0.35); padding:7px 14px; font-size:16px;
+  }
+  #muteBtn:active { box-shadow:0 1px 0 rgba(63,208,255,0.35); }
+
+  footer { font-size:11px; color:var(--text-dim); margin-top:14px; line-height:1.5; }
+
+  .overlay {
+    position:absolute; inset:0; background:rgba(6,8,14,0.95);
+    display:flex; align-items:center; justify-content:center; z-index:10;
+    text-align:center; padding:20px;
+  }
+  .overlay .box {
+    max-width:340px; background:var(--panel); border:1px solid var(--panel-border);
+    padding:26px 24px; box-shadow:0 0 40px rgba(63,208,255,0.08);
+  }
+  .overlay h2 { font-family:'Space Grotesk', sans-serif; margin:0 0 8px; font-size:19px; letter-spacing:0.01em; }
+  .overlay p { font-size:13px; color:var(--text-dim); margin:0 0 16px; line-height:1.5; }
+  .overlay .row { display:flex; gap:8px; }
+  #enterBtn { flex-shrink:0; white-space:nowrap; }
+  .entryError {
+    display:none; margin-top:12px; background:rgba(255,145,82,0.15);
+    border:1px solid var(--coral); color:#ffcba8; border-radius:6px;
+    padding:10px 12px; font-size:12px; line-height:1.5; text-align:left;
+  }
+  .entryError.show { display:block; }
+
+  .genderRow { display:flex; gap:8px; margin:0 0 14px; }
+  .genderBtn {
+    flex:1; background:#080b13; border:1px solid var(--panel-border); border-radius:4px;
+    padding:10px 8px; color:var(--text-dim); font-size:13px; cursor:pointer;
+    font-family:'Space Grotesk', sans-serif; font-weight:600; transition:all .1s;
+  }
+  .genderBtn.active { background:var(--cyan); border-color:var(--cyan-dark); color:#04141c; }
+
+  .canvasWrap { position:relative; width:100%; max-width:1700px; margin:0 auto; }
+  .canvasWrap canvas { display:block; margin:0 auto; }
+
+  #joyBase {
+    position:fixed; left:14px; bottom:14px; z-index:15;
+    width:82px; height:82px; border-radius:50%;
+    background:rgba(19,26,44,0.55);
+    border:1px solid rgba(63,208,255,0.4);
+    display:flex; align-items:center; justify-content:center;
+    touch-action:none; -webkit-user-select:none; user-select:none;
+  }
+  .joyKnob {
+    width:34px; height:34px; border-radius:50%;
+    background:rgba(63,208,255,0.85);
+    border:1px solid rgba(255,255,255,0.6);
+    box-shadow:0 2px 8px rgba(0,0,0,0.4);
+    touch-action:none;
+  }
+  .onlinePanel {
+    position:fixed; right:0; top:0; height:100vh; width:280px; z-index:30;
+    background:var(--panel); border-left:1px solid var(--panel-border);
+    box-shadow:-8px 0 24px rgba(0,0,0,0.4);
+    transform:translateX(100%); transition:transform .2s ease;
+    display:flex; flex-direction:column;
+  }
+  .onlinePanel.open { transform:translateX(0); }
+  .onlinePanelHeader {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:16px; border-bottom:1px solid var(--panel-border);
+    font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:14px; color:var(--cyan);
+  }
+  #onlinePanelFechar { background:none; border:none; color:var(--text-dim); font-size:14px; cursor:pointer; }
+  .onlinePanelBody { padding:14px 16px; overflow-y:auto; flex:1; }
+  .onlinePanelBody h3 {
+    font-family:'Space Grotesk', sans-serif; font-size:11px; font-weight:600; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--text-dim); margin:16px 0 8px;
+  }
+  .onlinePanelBody h3:first-child { margin-top:0; }
+  .areaCard {
+    background:#0f1424; border:1px solid var(--panel-border); border-radius:8px;
+    padding:8px 10px; margin-bottom:8px; font-size:12px;
+  }
+  .areaCardNome { font-weight:700; color:var(--text); margin-bottom:2px; }
+  .areaCardPessoas { color:var(--text-dim); font-size:11px; }
+  .onlineItem { display:flex; align-items:center; gap:8px; padding:7px 0; }
+  .onlineDot { width:8px; height:8px; border-radius:50%; background:#3ddc84; flex-shrink:0; }
+  .onlineDot.ausente { background:#8fa0c2; }
+  .onlineNome { font-size:12px; font-weight:600; color:var(--text); }
+  .onlineStatus { font-size:11px; color:var(--text-dim); }
+  .volumeSlider { width:64px; accent-color:var(--cyan); flex-shrink:0; }
+
+  @media (max-width: 779px) {
+    .onlyDesktop { display:none !important; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="onlinePanel" class="onlinePanel onlyDesktop">
+    <div class="onlinePanelHeader">
+      <span>Quem está online</span>
+      <button id="onlinePanelFechar">✖</button>
+    </div>
+    <div class="onlinePanelBody">
+      <h3>Áreas Ativas</h3>
+      <div id="areasAtivas"></div>
+      <h3>Online</h3>
+      <div id="listaOnline"></div>
+    </div>
+  </div>
+
+
+  <div id="entryOverlay" class="overlay">
+    <div class="box chamfer">
+      <img src="logo.png" alt="DARO Tech" style="max-width:180px; margin:0 auto 10px; display:block;" />
+      <h2>Escritório Virtual — DARO Tech</h2>
+      <p>Digite seu nome, escolha seu avatar e entre.</p>
+      <div class="genderRow">
+        <button type="button" class="genderBtn active" id="btnHomem" data-genero="homem">🧑 Homem</button>
+        <button type="button" class="genderBtn" id="btnMulher" data-genero="mulher">👩 Mulher</button>
+      </div>
+      <div class="row">
+        <input id="nameInput" type="text" placeholder="Seu nome" maxlength="20" />
+        <button id="enterBtn" class="btn-game">Entrar</button>
+      </div>
+      <div id="entryError" class="entryError"></div>
+      <button id="copiarLinkBtn" style="margin-top:14px; background:none; border:1px solid var(--panel-border); color:var(--cyan); font-size:12px; cursor:pointer; padding:7px 14px; border-radius:6px; font-family:'Space Grotesk', sans-serif; font-weight:600;">🔗 Copiar link do escritório</button>
+      <button id="closeBtn" style="margin-top:10px; background:none; border:none; color:var(--text-dim); font-size:12px; cursor:pointer; text-decoration:underline; display:block;">✕ Fechar</button>
+    </div>
+  </div>
+
+  <div id="closedOverlay" class="overlay" style="display:none;">
+    <div class="box chamfer">
+      <h2>🔒 Fechado no momento</h2>
+      <p>O escritório virtual funciona de segunda a sexta, das 8h às 17h. Volte nesse horário!</p>
+    </div>
+  </div>
+
+  <header>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <img src="logo.png" alt="DARO Tech" style="height:40px; width:auto; border-radius:6px;" />
+      <div>
+        <h1>Escritório Virtual — DARO Tech</h1>
+        <p>Use as setas do teclado (ou WASD) no computador, ou o manche na tela no celular, para mover seu avatar. Entre em uma sala para ver quem está online e conversar.</p>
+      </div>
+    </div>
+    <div id="headerControls" style="display:none; align-items:center; gap:8px; flex-wrap:wrap;">
+      <div id="statusBadge" class="chamfer-sm">📍 Conectando...</div>
+      <div id="totalOnlineBadge" class="chamfer-sm">👥 0 online</div>
+      <button id="muteBtn" class="btn-game" title="Ativar/desativar microfone">🎤</button>
+      <button id="camBtn" class="btn-game" title="Ativar/desativar câmera">📷</button>
+      <button id="screenShareBtn" class="btn-game" title="Compartilhar tela">🖥️</button>
+      <button id="lockBtn" class="btn-game" title="Entre em uma sala para trancar" style="opacity:0.4;">🔓</button>
+      <div style="position:relative;">
+        <button id="emoteBtn" class="btn-game" title="Mandar emote">😀</button>
+        <div id="emotePicker" class="emotePicker">
+          <button class="emoteOption" data-emoji="👍">👍</button>
+          <button class="emoteOption" data-emoji="❤️">❤️</button>
+          <button class="emoteOption" data-emoji="😂">😂</button>
+          <button class="emoteOption" data-emoji="😮">😮</button>
+          <button class="emoteOption" data-emoji="👋">👋</button>
+          <button class="emoteOption" data-emoji="🎉">🎉</button>
+          <button class="emoteOption" data-emoji="✅">✅</button>
+          <button class="emoteOption" data-emoji="❌">❌</button>
+          <button class="emoteOption" data-emoji="🍔">🍔</button>
+          <button class="emoteOption" data-emoji="☕">☕</button>
+          <button class="emoteOption" data-emoji="📞">📞</button>
+          <label class="emoteFixarRow">
+            <input type="checkbox" id="emoteFixarCheck" />
+            📌 Fixar como status
+          </label>
+          <button id="limparStatusBtn" class="emoteLimparBtn">✖ Limpar status</button>
+        </div>
+      </div>
+      <button id="avisoBtn" class="btn-game" title="Fixar aviso pra todo mundo">📌</button>
+      <button id="onlinePanelBtn" class="btn-game onlyDesktop" title="Quem está online">👥</button>
+      <button id="focoBtn" class="btn-game" title="Modo Foco (não perturbe)">🎧</button>
+      <button id="leaveBtn" class="btn-game">🚪 Sair</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="canvasWrap">
+      <canvas id="mapCanvas" width="900" height="650" tabindex="0"></canvas>
+      <div id="joyBase" class="joyBase">
+        <div id="joyKnob" class="joyKnob"></div>
+      </div>
+
+      <div id="videoHost" style="position:absolute; left:-9999px; top:-9999px;"></div>
+
+      <a id="youtubeBtn" class="youtubeBtn" href="https://www.youtube.com/@EstantedoHer%C3%B3iGeek" target="_blank" rel="noopener">▶️ Canal: Estante do Herói Geek</a>
+
+      <button id="knockBtn" class="knockBtn">🚪 Bater na porta</button>
+
+      <div id="avisoFixado" class="avisoFixado">
+        <span id="avisoFixadoTexto"></span>
+        <button id="avisoFixadoFechar" title="Remover aviso">✖</button>
+      </div>
+      <div id="bateuNaPortaBanner" class="bateuNaPortaBanner"></div>
+
+      <div id="telaCompartilhadaOverlay" class="telaCompartilhadaOverlay">
+        <div class="telaCompartilhadaHeader">
+          <span id="telaCompartilhadaNome">Compartilhando a tela</span>
+          <button id="fecharTelaBtn" class="btn-game" style="padding:3px 10px; font-size:11px;">✕ Fechar</button>
+        </div>
+        <video id="telaCompartilhadaVideo" autoplay playsinline></video>
+      </div>
+
+      <div id="chatFloating" class="chatFloating">
+        <div id="chatBody" class="chatFloatingBody">
+          <div id="chatLog"></div>
+          <div class="chatRow">
+            <input id="chatInput" type="text" placeholder="Digite uma mensagem..." />
+            <button id="sendBtn" class="btn-game">Enviar</button>
+          </div>
+        </div>
+        <div id="chatRoomInfo" class="chatRoomInfo">📍 Corredor</div>
+        <button id="toggleChatBtn" class="chatToggleBtn">
+          <span id="toggleChatLabel">↩ Abrir chat</span>
+          <span id="unreadBadge" style="display:none; background:var(--coral); color:#2b0f00; border-radius:999px; font-size:10px; padding:1px 6px; font-weight:700;">0</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Servidor DARO Tech — disponível em horário comercial (seg-sex, 8h-17h).<br>
+    Tenha o seu escritório virtual, entre em contato com Denis (11) 93083-7493.
+  </footer>
+</div>
+
+<script>
+(function(){
+  // O endereço do back-end agora vem do config.json (atualizado sozinho
+  // pelo tunnel-manager.js no seu notebook) em vez de ficar fixo no código.
+  async function buscarServerUrl(){
+    try {
+      const resp = await fetch('./config.json', { cache: 'no-store' });
+      const data = await resp.json();
+      return data.serverUrl || null;
+    } catch(e){
+      return null;
+    }
+  }
+
+  const canvas = document.getElementById('mapCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  const W = canvas.width, H = canvas.height; // tamanho lógico do mundo (fixo) — 900x650
+
+  // Faz o mapa crescer/encolher conforme o tamanho da janela, mantendo nitidez
+  // (usa devicePixelRatio pra ficar afiado em telas retina/4K)
+  const canvasWrap = document.querySelector('.canvasWrap');
+  function ajustarTamanhoCanvas(){
+    const larguraDisponivel = canvasWrap.clientWidth || W;
+    const alturaMaxima = window.innerHeight * 0.82;
+    const escalaPelaLargura = larguraDisponivel / W;
+    const escalaPelaAltura = alturaMaxima / H;
+    const escala = Math.min(escalaPelaLargura, escalaPelaAltura, 2.2);
+    const dpr = window.devicePixelRatio || 1;
+
+    canvas.width = Math.round(W * escala * dpr);
+    canvas.height = Math.round(H * escala * dpr);
+    canvas.style.width = Math.round(W * escala) + 'px';
+    canvas.style.height = Math.round(H * escala) + 'px';
+
+    ctx.setTransform(escala * dpr, 0, 0, escala * dpr, 0, 0);
+  }
+  window.addEventListener('resize', ajustarTamanhoCanvas);
+
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('service-worker.js').catch(() => {});
+    });
+  }
+  ajustarTamanhoCanvas();
+
+  // Layout baseado no desenho enviado pelo usuário (salas maiores, móveis no mesmo tamanho)
+  const rooms = [
+    { id:'diretoria',   name:'Diretoria',        emoji:'📊', x:28,  y:40,  w:225, h:150, img:'images/diretoria.webp' },
+    { id:'jogos',       name:'Sala de Jogos',    emoji:'🎮', x:269, y:40,  w:313, h:150, img:'images/jogos.webp' },
+    { id:'copa',        name:'Sala de Descanso', emoji:'☕', x:598, y:40,  w:267, h:150, img:'images/descanso.jpg' },
+    { id:'privativa1',  name:'Sala Privada 1', emoji:'🔐', x:140, y:230, w:130, h:70,  img:'images/privativa.jpg' },
+    { id:'privativa2',  name:'Sala Privada 2', emoji:'🔐', x:140, y:310, w:130, h:70,  img:'images/privativa.jpg' },
+    { id:'reuniao',     name:'Sala de Reunião',  emoji:'🗂️', x:285, y:230, w:230, h:150, img:'images/reuniao.jpg' },
+    { id:'audiovisual', name:'Videoconferência', emoji:'📹', x:530, y:230, w:250, h:150, img:'images/videoconferencia.jpg' },
+    { id:'auditorio',   name:'Auditório',        emoji:'🎭', x:160, y:420, w:338, h:190, img:'images/auditorio.png' },
+    { id:'reception',   name:'Recepção',         emoji:'🛎️', x:518, y:420, w:222, h:110, img:'images/reception.jpg' },
+  ];
+
+  // Cada sala agora é preenchida por uma foto real (estilo "janela" pro ambiente)
+  for(const r of rooms){
+    const img = new Image();
+    img.src = r.img;
+    r.imgEl = img;
+  }
+
+  const avatarImages = {};
+  function carregarAvatarImg(genero, src){
+    const img = new Image();
+    img.src = src;
+    avatarImages[genero] = img;
+  }
+  carregarAvatarImg('homem', 'images/avatar-homem.png');
+  carregarAvatarImg('mulher', 'images/avatar-mulher.png');
+
+  const FLOOR = { x:24, y:24, w:W-48, h:H-48 };
+
+  // Agrupamento visual por "ala" — puramente decorativo, não afeta detecção de sala
+  const zonas = [
+    { nome:'ADMINISTRAÇÃO & CONVIVÊNCIA', x:24,  y:24,  w:852, h:182, cor:'rgba(255,180,110,0.14)' },
+    { nome:'ALA DE TRABALHO',             x:124, y:214, w:672, h:182, cor:'rgba(63,208,255,0.14)' },
+    { nome:'RECEPÇÃO & EVENTOS',          x:144, y:404, w:612, h:222, cor:'rgba(169,146,217,0.16)' },
+  ];
+
+  function drawZonas(){
+    ctx.font = 'bold 10px "Space Grotesk", system-ui';
+    for(const z of zonas){
+      ctx.fillStyle = z.cor;
+      ctx.fillRect(z.x, z.y, z.w, z.h);
+      ctx.fillStyle = 'rgba(10,13,22,0.45)';
+      ctx.fillText(z.nome, z.x+10, z.y+15);
+    }
+  }
+
+  // Corredores — faixas entre as fileiras de salas, com cor diferente do resto do piso
+
+  const vasos = [
+    {x:12,y:100},{x:12,y:325},{x:12,y:550},
+    {x:888,y:100},{x:888,y:325},{x:888,y:550},
+  ];
+  const gramas = [
+    {x:150,y:12},{x:450,y:12},{x:750,y:12},
+    {x:150,y:638},{x:450,y:638},{x:750,y:638},
+  ];
+
+  const vasoImg = new Image();
+  vasoImg.src = 'images/vaso.png';
+  const gramaImg = new Image();
+  gramaImg.src = 'images/grama.webp';
+
+  function drawVaso(x,y){
+    if(!vasoImg.complete || !vasoImg.naturalWidth) return;
+    const h = 62;
+    const w = h * (vasoImg.naturalWidth / vasoImg.naturalHeight);
+    ctx.drawImage(vasoImg, x - w/2, y - h + 14, w, h);
+  }
+
+  function drawGrama(x,y){
+    if(!gramaImg.complete || !gramaImg.naturalWidth) return;
+    const w = 90;
+    const h = w * (gramaImg.naturalHeight / gramaImg.naturalWidth);
+    ctx.drawImage(gramaImg, x - w/2, y - h + 14, w, h);
+  }
+
+  function drawRoundedRect(x,y,w,h,r,fill,strokeColor){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+    if(strokeColor){ ctx.strokeStyle = strokeColor; ctx.lineWidth = 2; ctx.stroke(); }
+  }
+
+  // Preenche a sala inteira com a foto (estilo "cover": corta o excesso, sem
+  // sobrar cor de fundo), com o nome em uma etiqueta por cima, no canto.
+  function drawRoomPhoto(r){
+    const img = r.imgEl;
+    const rad = 12;
+    if(!img || !img.complete || !img.naturalWidth){
+      drawRoundedRect(r.x, r.y, r.w, r.h, rad, '#2a2f45', null);
+      return;
+    }
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(r.x+rad, r.y);
+    ctx.arcTo(r.x+r.w, r.y, r.x+r.w, r.y+r.h, rad);
+    ctx.arcTo(r.x+r.w, r.y+r.h, r.x, r.y+r.h, rad);
+    ctx.arcTo(r.x, r.y+r.h, r.x, r.y, rad);
+    ctx.arcTo(r.x, r.y, r.x+r.w, r.y, rad);
+    ctx.closePath();
+    ctx.clip();
+
+    const imgRatio = img.naturalWidth / img.naturalHeight;
+    const boxRatio = r.w / r.h;
+    let dw, dh, dx, dy;
+    if(imgRatio > boxRatio){
+      dh = r.h;
+      dw = dh * imgRatio;
+      dx = r.x - (dw - r.w) / 2;
+      dy = r.y;
+    } else {
+      dw = r.w;
+      dh = dw / imgRatio;
+      dx = r.x;
+      dy = r.y - (dh - r.h) / 2;
+    }
+    ctx.drawImage(img, dx, dy, dw, dh);
+    ctx.restore();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(r.x+rad, r.y);
+    ctx.arcTo(r.x+r.w, r.y, r.x+r.w, r.y+r.h, rad);
+    ctx.arcTo(r.x+r.w, r.y+r.h, r.x, r.y+r.h, rad);
+    ctx.arcTo(r.x, r.y+r.h, r.x, r.y, rad);
+    ctx.arcTo(r.x, r.y, r.x+r.w, r.y, rad);
+    ctx.closePath();
+    ctx.stroke();
+
+    const label = r.emoji + ' ' + r.name + (salasTrancadas[r.id] ? ' 🔒' : '');
+    ctx.font = 'bold 13px system-ui';
+    const paddingX = 8;
+    const textW = ctx.measureText(label).width;
+    const chipW = textW + paddingX*2;
+    const chipH = 22;
+    drawRoundedRect(r.x+8, r.y+8, chipW, chipH, 6, 'rgba(10,13,20,0.72)', null);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(label, r.x+8+paddingX, r.y+8+chipH-7);
+  }
+
+  function roomAt(px, py){
+    for(const r of rooms){
+      if(px >= r.x && px <= r.x+r.w && py >= r.y && py <= r.y+r.h) return r;
+    }
+    return null;
+  }
+
+  function roomNameById(id){
+    const r = rooms.find(r => r.id === id);
+    return r ? r.emoji + ' ' + r.name : null;
+  }
+
+  // ---- Estado local ----
+  let socket = null;
+  let myId = null;
+  let players = {};       // vem do servidor: { socketId: {name,x,y,roomId,genero} }
+  let currentRoomId = null;
+  let myName = '';
+  let generoSelecionado = 'homem';
+  let salasTrancadas = {}; // roomId -> true se estiver trancada (vem do servidor)
+  let idsConhecidos = new Set(); // pra saber quem é "gente nova" chegando no escritório
+  let primeiroEstadoRecebido = false;
+
+  // ---- Áudio e vídeo ao vivo (WebRTC) ----
+  const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
+  let localStream = null;
+  let micDisponivel = false;
+  let camDisponivel = false;
+  let micMutado = false;
+  let camMutado = false;
+  const peerConnections = {};   // socketId -> RTCPeerConnection (áudio/vídeo da câmera)
+  const remoteMediaEls = {};    // socketId -> <video>
+  let salaMembrosAnteriores = new Set();
+
+  // ---- Compartilhamento de tela ----
+  let screenStream = null;
+  let compartilhandoTela = false;
+  const screenPeerConnections = {}; // socketId -> RTCPeerConnection (só da tela, separado da câmera)
+  let telaCompartilhadaDe = null;    // quem está aparecendo no visualizador agora
+
+  // ---- Ausência automática ----
+  let ultimaAtividade = Date.now();
+  let euEstouAusente = false;
+  let euEstouFocado = false;
+  let minhaQualidade = null;
+
+  function estaDigitando(){
+    const el = document.activeElement;
+    if(!el) return false;
+    return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
+  }
+
+  const keys = {};
+  window.addEventListener('keydown', e => {
+    if(estaDigitando()) return; // não mexe no avatar enquanto a pessoa está digitando
+    const k = e.key.toLowerCase();
+    keys[k] = true;
+    if(['arrowup','arrowdown','arrowleft','arrowright'].includes(k)) e.preventDefault();
+  });
+  window.addEventListener('keyup', e => {
+    if(estaDigitando()) return;
+    keys[e.key.toLowerCase()] = false;
+  });
+
+  // ---- Atalhos de teclado ----
+  window.addEventListener('keydown', e => {
+    const k = e.key.toLowerCase();
+
+    if(k === 'escape'){
+      emotePicker.classList.remove('open');
+      if(chatAberto) alternarChat();
+      onlinePanel.classList.remove('open');
+      return;
+    }
+
+    if(!socket || estaDigitando()) return;
+
+    if(k === 'enter'){
+      e.preventDefault();
+      if(!chatAberto) alternarChat();
+      chatInput.focus();
+    } else if(k === 'm'){
+      muteBtn.click();
+    } else if(k === 'c'){
+      camBtn.click();
+    }
+  });
+
+  // ---- Manche virtual (celular / touch) ----
+  const joyBase = document.getElementById('joyBase');
+  const ehDispositivoTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  const headerControls = document.getElementById('headerControls');
+  joyBase.style.display = 'none'; // só aparece depois de realmente entrar no jogo
+  const joyKnob = document.getElementById('joyKnob');
+  const JOY_MAX_RADIUS = 24;
+  const JOY_DEADZONE = 8;
+  let joyAtivo = false;
+  let joyCentro = { x: 0, y: 0 };
+
+  function joyPegarPonto(e){
+    if(e.touches && e.touches[0]) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    return { x: e.clientX, y: e.clientY };
+  }
+
+  function joyIniciar(e){
+    e.preventDefault();
+    joyAtivo = true;
+    const rect = joyBase.getBoundingClientRect();
+    joyCentro = { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
+    joyMover(e);
+  }
+
+  function joyMover(e){
+    if(!joyAtivo) return;
+    e.preventDefault();
+    const p = joyPegarPonto(e);
+    let dx = p.x - joyCentro.x;
+    let dy = p.y - joyCentro.y;
+    const dist = Math.hypot(dx, dy);
+    if(dist > JOY_MAX_RADIUS){
+      dx = dx / dist * JOY_MAX_RADIUS;
+      dy = dy / dist * JOY_MAX_RADIUS;
+    }
+    joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+
+    keys['arrowleft'] = dx < -JOY_DEADZONE;
+    keys['arrowright'] = dx > JOY_DEADZONE;
+    keys['arrowup'] = dy < -JOY_DEADZONE;
+    keys['arrowdown'] = dy > JOY_DEADZONE;
+  }
+
+  function joyEncerrar(){
+    joyAtivo = false;
+    joyKnob.style.transform = 'translate(0px, 0px)';
+    keys['arrowleft'] = keys['arrowright'] = keys['arrowup'] = keys['arrowdown'] = false;
+  }
+
+  joyBase.addEventListener('touchstart', joyIniciar, { passive:false });
+  joyBase.addEventListener('touchmove', joyMover, { passive:false });
+  joyBase.addEventListener('touchend', joyEncerrar, { passive:false });
+  joyBase.addEventListener('touchcancel', joyEncerrar, { passive:false });
+  joyBase.addEventListener('mousedown', joyIniciar);
+  window.addEventListener('mousemove', (e) => { if(joyAtivo) joyMover(e); });
+  window.addEventListener('mouseup', joyEncerrar);
+
+  const statusBadge = document.getElementById('statusBadge');
+  const totalOnlineBadge = document.getElementById('totalOnlineBadge');
+  const chatRoomInfo = document.getElementById('chatRoomInfo');
+  const chatBody = document.getElementById('chatBody');
+  const chatLog = document.getElementById('chatLog');
+  const chatInput = document.getElementById('chatInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const toggleChatBtn = document.getElementById('toggleChatBtn');
+  const toggleChatLabel = document.getElementById('toggleChatLabel');
+  const unreadBadge = document.getElementById('unreadBadge');
+  let chatAberto = false;
+  let mensagensNaoLidas = 0;
+
+  function atualizarBadgeNaoLidas(){
+    if(mensagensNaoLidas > 0 && !chatAberto){
+      unreadBadge.textContent = mensagensNaoLidas > 9 ? '9+' : String(mensagensNaoLidas);
+      unreadBadge.style.display = 'inline-block';
+    } else {
+      unreadBadge.style.display = 'none';
+    }
+  }
+
+  function alternarChat(){
+    chatAberto = !chatAberto;
+    chatBody.classList.toggle('open', chatAberto);
+    toggleChatLabel.textContent = chatAberto ? '✖ Fechar chat' : '↩ Abrir chat';
+    if(chatAberto){
+      mensagensNaoLidas = 0;
+      atualizarBadgeNaoLidas();
+      chatLog.scrollTop = chatLog.scrollHeight;
+      chatInput.focus();
+    }
+  }
+  toggleChatBtn.addEventListener('click', alternarChat);
+  const entryOverlay = document.getElementById('entryOverlay');
+  const entryError = document.getElementById('entryError');
+  const closedOverlay = document.getElementById('closedOverlay');
+  const nameInput = document.getElementById('nameInput');
+  const enterBtn = document.getElementById('enterBtn');
+  const btnHomem = document.getElementById('btnHomem');
+  const btnMulher = document.getElementById('btnMulher');
+  const leaveBtn = document.getElementById('leaveBtn');
+  const avisoBtn = document.getElementById('avisoBtn');
+  const avisoFixadoEl = document.getElementById('avisoFixado');
+  const avisoFixadoTexto = document.getElementById('avisoFixadoTexto');
+  const avisoFixadoFechar = document.getElementById('avisoFixadoFechar');
+
+  const onlinePanel = document.getElementById('onlinePanel');
+  const onlinePanelBtn = document.getElementById('onlinePanelBtn');
+  const focoBtn = document.getElementById('focoBtn');
+
+  focoBtn.addEventListener('click', () => {
+    if(!socket) return;
+    euEstouFocado = !euEstouFocado;
+    focoBtn.style.background = euEstouFocado ? 'var(--cyan)' : '';
+    focoBtn.style.color = euEstouFocado ? '#04141c' : '';
+    socket.emit('foco', { focado: euEstouFocado });
+  });
+  const onlinePanelFechar = document.getElementById('onlinePanelFechar');
+  const areasAtivasEl = document.getElementById('areasAtivas');
+  const listaOnlineEl = document.getElementById('listaOnline');
+
+  onlinePanelBtn.addEventListener('click', () => onlinePanel.classList.toggle('open'));
+  onlinePanelFechar.addEventListener('click', () => onlinePanel.classList.remove('open'));
+
+  function atualizarPainelOnline(){
+    const porSala = {};
+    for(const [id, p] of Object.entries(players)){
+      if(!p.roomId) continue;
+      if(!porSala[p.roomId]) porSala[p.roomId] = [];
+      porSala[p.roomId].push(id === myId ? p.name + ' (Você)' : p.name);
+    }
+
+    areasAtivasEl.innerHTML = '';
+    for(const roomId of Object.keys(porSala)){
+      const sala = rooms.find(r => r.id === roomId);
+      const card = document.createElement('div');
+      card.className = 'areaCard';
+      const nomeSala = sala ? (sala.emoji + ' ' + sala.name) : roomId;
+      card.innerHTML = '<div class="areaCardNome">' + nomeSala + '</div><div class="areaCardPessoas">' + porSala[roomId].join(', ') + '</div>';
+      areasAtivasEl.appendChild(card);
+    }
+    if(Object.keys(porSala).length === 0){
+      areasAtivasEl.innerHTML = '<div class="areaCardPessoas">Ninguém em nenhuma sala agora.</div>';
+    }
+
+    listaOnlineEl.innerHTML = '';
+    for(const [id, p] of Object.entries(players)){
+      const sala = rooms.find(r => r.id === p.roomId);
+      const statusTexto = p.ausente ? '💤 Ausente' : (sala ? sala.emoji + ' ' + sala.name : '📍 Corredor');
+      const item = document.createElement('div');
+      item.className = 'onlineItem';
+      let sliderHtml = '';
+      if(id !== myId && peerConnections[id]){
+        const vol = volumesIndividuais[id] !== undefined ? volumesIndividuais[id] : 1;
+        sliderHtml = '<input type="range" min="0" max="100" value="' + Math.round(vol*100) +
+          '" class="volumeSlider" data-id="' + id + '" title="Volume de ' + p.name + '" />';
+      }
+      item.innerHTML = '<span class="onlineDot' + (p.ausente ? ' ausente' : '') + '"></span>' +
+        '<div style="flex:1;"><div class="onlineNome">' + p.name + (id === myId ? ' (Você)' : '') + '</div>' +
+        '<div class="onlineStatus">' + statusTexto + '</div></div>' + sliderHtml;
+      listaOnlineEl.appendChild(item);
+    }
+
+    listaOnlineEl.querySelectorAll('.volumeSlider').forEach(slider => {
+      slider.addEventListener('input', () => {
+        definirVolume(slider.dataset.id, slider.value / 100);
+      });
+    });
+  }
+
+  avisoBtn.addEventListener('click', () => {
+    if(!socket) return;
+    const texto = prompt('Digite o aviso que vai ficar fixado pra todo mundo ver:');
+    if(texto && texto.trim()) socket.emit('aviso', texto.trim().slice(0, 200));
+  });
+
+  avisoFixadoFechar.addEventListener('click', () => {
+    if(socket) socket.emit('aviso-limpar');
+  });
+  const muteBtn = document.getElementById('muteBtn');
+  const camBtn = document.getElementById('camBtn');
+  const videoHost = document.getElementById('videoHost');
+  const emoteBtn = document.getElementById('emoteBtn');
+  const emotePicker = document.getElementById('emotePicker');
+  const emotesAtivos = {}; // socketId -> { emoji, expira }
+
+  emoteBtn.addEventListener('click', () => {
+    emotePicker.classList.toggle('open');
+  });
+  document.querySelectorAll('.emoteOption').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const emoji = btn.dataset.emoji;
+      const fixo = emoteFixarCheck.checked;
+      if(socket) socket.emit('emote', { emoji, fixo });
+      emotePicker.classList.remove('open');
+      ultimaAtividade = Date.now();
+    });
+  });
+
+  const emoteFixarCheck = document.getElementById('emoteFixarCheck');
+  const limparStatusBtn = document.getElementById('limparStatusBtn');
+  limparStatusBtn.addEventListener('click', () => {
+    if(socket) socket.emit('emote', { emoji: '', fixo: false });
+    emoteFixarCheck.checked = false;
+    emotePicker.classList.remove('open');
+  });
+
+  let localVideoEl = null;
+
+  // Cria (ou reaproveita) o elemento <video> de alguém — fica escondido fora da
+  // tela, só existe pra fornecer o quadro atual que desenhamos no mapa, acima do avatar.
+  const volumesIndividuais = {}; // socketId -> 0.0 a 1.0 (preferência de volume por pessoa)
+
+  function definirVolume(id, valor){
+    volumesIndividuais[id] = valor;
+    const video = remoteMediaEls[id];
+    if(video) video.volume = valor;
+  }
+
+  function criarVideoEl(id, isMe){
+    let video = document.getElementById('video-' + id);
+    if(video) return video;
+    video = document.createElement('video');
+    video.id = 'video-' + id;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.muted = isMe; // evita eco do seu próprio áudio
+    if(!isMe && volumesIndividuais[id] !== undefined) video.volume = volumesIndividuais[id];
+    videoHost.appendChild(video);
+    return video;
+  }
+
+  function removerVideoEl(id){
+    const video = document.getElementById('video-' + id);
+    if(video){ video.srcObject = null; video.remove(); }
+  }
+
+  async function iniciarMicrofone(){
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: { width: 200, height: 150 } });
+      micDisponivel = true;
+      camDisponivel = localStream.getVideoTracks().length > 0;
+      muteBtn.title = 'Ativar/desativar microfone';
+
+      // Microfone começa desligado — a pessoa liga quando quiser
+      micMutado = true;
+      for(const track of localStream.getAudioTracks()) track.enabled = false;
+      muteBtn.textContent = '🔇';
+
+      if(camDisponivel){
+        localVideoEl = criarVideoEl('local', true);
+        localVideoEl.srcObject = localStream;
+        // Câmera começa desligada de verdade (solta o hardware, apaga a luz)
+        const videoTrack = localStream.getVideoTracks()[0];
+        videoTrack.stop();
+        camMutado = true;
+        camBtn.style.opacity = '0.5';
+      } else {
+        camBtn.style.display = 'none';
+      }
+    } catch(e){
+      try {
+        // sem câmera disponível, tenta só com áudio
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        micDisponivel = true;
+        camDisponivel = false;
+        camBtn.style.display = 'none';
+        micMutado = true;
+        for(const track of localStream.getAudioTracks()) track.enabled = false;
+        muteBtn.textContent = '🔇';
+      } catch(e2){
+        micDisponivel = false;
+        muteBtn.textContent = '🚫';
+        muteBtn.title = 'Microfone indisponível (permissão negada ou sem microfone)';
+        camBtn.style.display = 'none';
+      }
+    }
+  }
+
+  muteBtn.addEventListener('click', () => {
+    if(!localStream) return;
+    micMutado = !micMutado;
+    for(const track of localStream.getAudioTracks()) track.enabled = !micMutado;
+    muteBtn.textContent = micMutado ? '🔇' : '🎤';
+  });
+
+  camBtn.addEventListener('click', async () => {
+    if(!camDisponivel) return;
+
+    if(!camMutado){
+      // Desligar de verdade: para o track, o que solta o hardware e apaga a luz.
+      const videoTrack = localStream.getVideoTracks()[0];
+      if(videoTrack) videoTrack.stop();
+      for(const remoteId of Object.keys(videoSenders)){
+        try { videoSenders[remoteId].replaceTrack(null); } catch(e){}
+      }
+      camMutado = true;
+      camBtn.style.opacity = '0.5';
+      if(socket) socket.emit('cam-estado', { ligada: false });
+    } else {
+      // Religar: pede a câmera de novo (é normal a luz acender de novo aqui).
+      try {
+        const novoStream = await navigator.mediaDevices.getUserMedia({ video: { width: 200, height: 150 } });
+        const novoTrack = novoStream.getVideoTracks()[0];
+
+        const antigo = localStream.getVideoTracks()[0];
+        if(antigo) localStream.removeTrack(antigo);
+        localStream.addTrack(novoTrack);
+
+        for(const remoteId of Object.keys(peerConnections)){
+          if(videoSenders[remoteId]){
+            await videoSenders[remoteId].replaceTrack(novoTrack);
+          } else {
+            const pc = peerConnections[remoteId];
+            videoSenders[remoteId] = pc.addTrack(novoTrack, localStream);
+            renegociarConexao(remoteId); // precisa avisar o outro lado que tem vídeo novo
+          }
+        }
+
+        localVideoEl = criarVideoEl('local', true);
+        localVideoEl.srcObject = localStream;
+        camMutado = false;
+        camBtn.style.opacity = '1';
+        if(socket) socket.emit('cam-estado', { ligada: true });
+      } catch(e){
+        // câmera indisponível ou permissão negada de novo — continua desligada
+      }
+    }
+  });
+
+  // ---- Compartilhamento de tela ----
+  const screenShareBtn = document.getElementById('screenShareBtn');
+  const lockBtn = document.getElementById('lockBtn');
+  const youtubeBtn = document.getElementById('youtubeBtn');
+
+  lockBtn.addEventListener('click', () => {
+    const eu = players[myId];
+    if(!eu || !eu.roomId || !socket) return;
+    const trancadaAgora = !!salasTrancadas[eu.roomId];
+    socket.emit('trancar-sala', { roomId: eu.roomId, trancada: !trancadaAgora });
+  });
+
+  function atualizarBotaoTranca(){
+    const eu = players[myId];
+    if(!eu || !eu.roomId){
+      lockBtn.style.opacity = '0.4';
+      lockBtn.textContent = '🔓';
+      lockBtn.title = 'Entre em uma sala para trancar';
+      return;
+    }
+    lockBtn.style.opacity = '1';
+    const trancada = !!salasTrancadas[eu.roomId];
+    lockBtn.textContent = trancada ? '🔒' : '🔓';
+    lockBtn.title = trancada ? 'Destrancar esta sala' : 'Trancar esta sala';
+  }
+
+  function atualizarBotaoYoutube(){
+    const eu = players[myId];
+    youtubeBtn.classList.toggle('show', !!(eu && eu.roomId === 'audiovisual'));
+  }
+
+  // ---- Bater na porta (sala trancada) ----
+  const knockBtn = document.getElementById('knockBtn');
+  const bateuNaPortaBanner = document.getElementById('bateuNaPortaBanner');
+  let salaBloqueada = null;
+  let bateuNaPortaTimeout = null;
+
+  knockBtn.addEventListener('click', () => {
+    if(!salaBloqueada || !socket) return;
+    socket.emit('bater-porta', { roomId: salaBloqueada });
+    knockBtn.textContent = '✔ Avisado!';
+    setTimeout(() => { knockBtn.textContent = '🚪 Bater na porta'; }, 2000);
+  });
+
+  function mostrarBatidaNaPorta(nome){
+    bateuNaPortaBanner.textContent = '🚪 ' + nome + ' está batendo na porta!';
+    bateuNaPortaBanner.classList.add('show');
+    tocarSomBater();
+    clearTimeout(bateuNaPortaTimeout);
+    bateuNaPortaTimeout = setTimeout(() => {
+      bateuNaPortaBanner.classList.remove('show');
+    }, 4000);
+  }
+
+  const telaCompartilhadaOverlay = document.getElementById('telaCompartilhadaOverlay');
+  const telaCompartilhadaVideo = document.getElementById('telaCompartilhadaVideo');
+  const telaCompartilhadaNome = document.getElementById('telaCompartilhadaNome');
+  const fecharTelaBtn = document.getElementById('fecharTelaBtn');
+
+  async function iniciarChamadaTela(remoteId){
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    screenPeerConnections[remoteId] = pc;
+    for(const track of screenStream.getTracks()) pc.addTrack(track, screenStream);
+    pc.onicecandidate = (e) => {
+      if(e.candidate && socket) socket.emit('tela-ice', { to: remoteId, candidate: e.candidate });
+    };
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit('tela-offer', { to: remoteId, offer });
+  }
+
+  async function iniciarCompartilhamentoTela(){
+    try {
+      screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    } catch(e){
+      return; // usuário cancelou o seletor do navegador
+    }
+    compartilhandoTela = true;
+    screenShareBtn.textContent = '🛑';
+    screenShareBtn.title = 'Parar de compartilhar a tela';
+
+    screenStream.getVideoTracks()[0].onended = pararCompartilhamentoTela;
+
+    for(const remoteId of salaMembrosAnteriores){
+      iniciarChamadaTela(remoteId);
+    }
+  }
+
+  function pararCompartilhamentoTela(){
+    compartilhandoTela = false;
+    screenShareBtn.textContent = '🖥️';
+    screenShareBtn.title = 'Compartilhar tela';
+    if(screenStream){
+      for(const track of screenStream.getTracks()) track.stop();
+      screenStream = null;
+    }
+    for(const id of Object.keys(screenPeerConnections)){
+      if(socket) socket.emit('tela-parou', { to: id });
+      screenPeerConnections[id].close();
+      delete screenPeerConnections[id];
+    }
+  }
+
+  screenShareBtn.addEventListener('click', () => {
+    if(compartilhandoTela) pararCompartilhamentoTela();
+    else iniciarCompartilhamentoTela();
+  });
+
+  function mostrarTelaCompartilhada(fromId, stream){
+    const nome = (players[fromId] && players[fromId].name) || 'Alguém';
+    telaCompartilhadaNome.textContent = nome + ' está compartilhando a tela';
+    telaCompartilhadaVideo.srcObject = stream;
+    telaCompartilhadaOverlay.classList.add('open');
+    telaCompartilhadaDe = fromId;
+  }
+
+  function esconderTelaCompartilhada(fromId){
+    if(telaCompartilhadaDe !== fromId) return;
+    telaCompartilhadaOverlay.classList.remove('open');
+    telaCompartilhadaVideo.srcObject = null;
+    telaCompartilhadaDe = null;
+  }
+
+  fecharTelaBtn.addEventListener('click', () => {
+    telaCompartilhadaOverlay.classList.remove('open');
+    telaCompartilhadaVideo.srcObject = null;
+    telaCompartilhadaDe = null;
+    // só fecha a visualização — a transmissão de quem está compartilhando continua
+  });
+
+  function encerrarTodasConexoesTela(){
+    pararCompartilhamentoTela();
+    for(const id of Object.keys(screenPeerConnections)){
+      screenPeerConnections[id].close();
+      delete screenPeerConnections[id];
+    }
+    telaCompartilhadaOverlay.classList.remove('open');
+    telaCompartilhadaVideo.srcObject = null;
+    telaCompartilhadaDe = null;
+  }
+
+  const videoSenders = {}; // remoteId -> RTCRtpSender do vídeo (pra trocar o track sem precisar renegociar)
+
+  function criarPeerConnection(remoteId){
+    if(peerConnections[remoteId]) return peerConnections[remoteId];
+
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    peerConnections[remoteId] = pc;
+
+    if(localStream){
+      for(const track of localStream.getTracks()){
+        if(track.readyState !== 'live') continue;
+        const sender = pc.addTrack(track, localStream);
+        if(track.kind === 'video') videoSenders[remoteId] = sender;
+      }
+    }
+
+    pc.onicecandidate = (event) => {
+      if(event.candidate && socket){
+        socket.emit('webrtc-ice', { to: remoteId, candidate: event.candidate });
+      }
+    };
+
+    pc.ontrack = (event) => {
+      const video = criarVideoEl(remoteId, false);
+      remoteMediaEls[remoteId] = video;
+      video.srcObject = event.streams[0];
+    };
+
+    return pc;
+  }
+
+  async function renegociarConexao(remoteId){
+    const pc = peerConnections[remoteId];
+    if(!pc || !socket) return;
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit('webrtc-offer', { to: remoteId, offer });
+  }
+
+  // Mede a qualidade da conexão de áudio/vídeo (perda de pacotes) periodicamente,
+  // e avisa o servidor pra todo mundo ver o indicador 🟢🟡🔴 no seu nome.
+  async function medirQualidadeConexao(){
+    const ids = Object.keys(peerConnections);
+    if(ids.length === 0){
+      if(minhaQualidade !== null){
+        minhaQualidade = null;
+        if(socket) socket.emit('qualidade-conexao', { qualidade: null });
+      }
+      return;
+    }
+
+    let pior = 'boa';
+    for(const id of ids){
+      const pc = peerConnections[id];
+      if(!pc) continue;
+      if(pc.connectionState === 'disconnected' || pc.connectionState === 'failed'){
+        pior = 'ruim';
+        continue;
+      }
+      try {
+        const stats = await pc.getStats();
+        stats.forEach(relatorio => {
+          if(relatorio.type === 'inbound-rtp' && relatorio.kind === 'audio'){
+            const perdidos = relatorio.packetsLost || 0;
+            const recebidos = relatorio.packetsReceived || 0;
+            const total = perdidos + recebidos;
+            if(total > 20){
+              const taxaPerda = perdidos / total;
+              if(taxaPerda > 0.08) pior = 'ruim';
+              else if(taxaPerda > 0.03 && pior !== 'ruim') pior = 'media';
+            }
+          }
+        });
+      } catch(e){ /* navegador pode não suportar getStats desse jeito, ignora */ }
+    }
+
+    if(pior !== minhaQualidade){
+      minhaQualidade = pior;
+      if(socket) socket.emit('qualidade-conexao', { qualidade: pior });
+    }
+  }
+  setInterval(medirQualidadeConexao, 5000);
+
+  async function iniciarChamada(remoteId){
+    const pc = criarPeerConnection(remoteId);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit('webrtc-offer', { to: remoteId, offer });
+  }
+
+  function encerrarConexaoAudio(remoteId){
+    const pc = peerConnections[remoteId];
+    if(pc){ pc.close(); delete peerConnections[remoteId]; }
+    if(remoteMediaEls[remoteId]){
+      remoteMediaEls[remoteId].srcObject = null;
+      delete remoteMediaEls[remoteId];
+    }
+    removerVideoEl(remoteId);
+  }
+
+  function encerrarTodasConexoesAudio(){
+    for(const id of Object.keys(peerConnections)) encerrarConexaoAudio(id);
+    salaMembrosAnteriores = new Set();
+  }
+
+  // Compara quem está na minha sala agora com quem estava antes, e cria/fecha
+  // conexões de áudio de acordo (entrar na sala = conectar, sair = desconectar)
+  function atualizarConexoesDeAudio(){
+    const eu = players[myId];
+    const minhaSalaId = eu ? eu.roomId : null;
+
+    let membrosAtuais = new Set();
+    if(minhaSalaId){
+      for(const [id, p] of Object.entries(players)){
+        if(id !== myId && p.roomId === minhaSalaId) membrosAtuais.add(id);
+      }
+    }
+
+    for(const id of membrosAtuais){
+      if(!salaMembrosAnteriores.has(id)){
+        if(micDisponivel && myId < id) iniciarChamada(id);
+        // se myId > id, esperamos a oferta chegar do outro lado
+        if(compartilhandoTela) iniciarChamadaTela(id);
+        tocarSomEntrada();
+      }
+    }
+
+    for(const id of salaMembrosAnteriores){
+      if(!membrosAtuais.has(id)){
+        encerrarConexaoAudio(id);
+        if(screenPeerConnections[id]){
+          screenPeerConnections[id].close();
+          delete screenPeerConnections[id];
+        }
+      }
+    }
+
+    salaMembrosAnteriores = membrosAtuais;
+  }
+
+  function sair(){
+    if(socket){
+      socket.disconnect();
+      socket = null;
+    }
+    joyBase.style.display = 'none';
+    headerControls.style.display = 'none';
+    avisoFixadoEl.classList.remove('show');
+    encerrarTodasConexoesAudio();
+    encerrarTodasConexoesTela();
+    if(localStream){
+      for(const track of localStream.getTracks()) track.stop();
+      localStream = null;
+    }
+    removerVideoEl('local');
+    localVideoEl = null;
+    micDisponivel = false;
+    camDisponivel = false;
+    micMutado = false;
+    camMutado = false;
+    muteBtn.textContent = '🎤';
+    camBtn.textContent = '📷';
+    camBtn.style.display = '';
+    camBtn.style.opacity = '1';
+    euEstouAusente = false;
+    euEstouFocado = false;
+    minhaQualidade = null;
+    focoBtn.style.background = '';
+    focoBtn.style.color = '';
+    ultimaAtividade = Date.now();
+    salasTrancadas = {};
+    salaBloqueada = null;
+    idsConhecidos = new Set();
+    primeiroEstadoRecebido = false;
+    totalOnlineBadge.textContent = '👥 0 online';
+    onlinePanel.classList.remove('open');
+    areasAtivasEl.innerHTML = '';
+    listaOnlineEl.innerHTML = '';
+    knockBtn.classList.remove('show');
+    bateuNaPortaBanner.classList.remove('show');
+    myId = null;
+    players = {};
+    currentRoomId = null;
+    chatLog.innerHTML = '';
+    mensagensNaoLidas = 0;
+    chatAberto = false;
+    chatBody.classList.remove('open');
+    toggleChatLabel.textContent = '↩ Abrir chat';
+    atualizarBadgeNaoLidas();
+    atualizarBotaoTranca();
+    youtubeBtn.classList.remove('show');
+    statusBadge.textContent = '📍 Conectando...';
+    entryOverlay.style.display = 'flex';
+  }
+  leaveBtn.addEventListener('click', sair);
+
+  const copiarLinkBtn = document.getElementById('copiarLinkBtn');
+  copiarLinkBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      copiarLinkBtn.textContent = '✅ Link copiado!';
+    } catch(e){
+      copiarLinkBtn.textContent = '⚠️ Não deu pra copiar, copie da barra do navegador';
+    }
+    setTimeout(() => { copiarLinkBtn.textContent = '🔗 Copiar link do escritório'; }, 2500);
+  });
+
+  document.getElementById('closeBtn').addEventListener('click', () => {
+    window.close();
+    // Por segurança, navegadores só deixam fechar abas abertas por script.
+    // Se continuar aberta depois da tentativa, avisamos que já pode fechar na mão.
+    setTimeout(() => {
+      alert('Este navegador não permite fechar a aba automaticamente. Pode fechar manualmente (Ctrl+W ou no X da aba).');
+    }, 300);
+  });
+
+  btnHomem.addEventListener('click', () => {
+    generoSelecionado = 'homem';
+    btnHomem.classList.add('active');
+    btnMulher.classList.remove('active');
+  });
+  btnMulher.addEventListener('click', () => {
+    generoSelecionado = 'mulher';
+    btnMulher.classList.add('active');
+    btnHomem.classList.remove('active');
+  });
+
+  // ---- Som de notificação (gerado por código, sem precisar de arquivo de áudio) ----
+  let audioCtxSino = null;
+  function prepararSom(){
+    try { audioCtxSino = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e){ audioCtxSino = null; }
+  }
+
+  // ---- Notificação do navegador (aparece mesmo com a aba em segundo plano) ----
+  let notificacoesPermitidas = false;
+  async function pedirPermissaoNotificacao(){
+    if(!('Notification' in window)) return;
+    if(Notification.permission === 'granted'){ notificacoesPermitidas = true; return; }
+    if(Notification.permission !== 'denied'){
+      try {
+        const resultado = await Notification.requestPermission();
+        notificacoesPermitidas = resultado === 'granted';
+      } catch(e){ /* navegador antigo ou bloqueado; segue sem notificação */ }
+    }
+  }
+
+  function tocarSom(){
+    if(!audioCtxSino || euEstouFocado) return;
+    if(audioCtxSino.state === 'suspended') audioCtxSino.resume();
+    const osc = audioCtxSino.createOscillator();
+    const gain = audioCtxSino.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.value = 0.15;
+    osc.connect(gain);
+    gain.connect(audioCtxSino.destination);
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtxSino.currentTime + 0.3);
+    osc.stop(audioCtxSino.currentTime + 0.3);
+  }
+
+  // Som (dois tons subindo) quando alguém entra na sala onde você está
+  function tocarSomEntrada(){
+    if(!audioCtxSino || euEstouFocado) return;
+    if(audioCtxSino.state === 'suspended') audioCtxSino.resume();
+    [660, 880].forEach((freq, i) => {
+      const osc = audioCtxSino.createOscillator();
+      const gain = audioCtxSino.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.value = 0.12;
+      osc.connect(gain);
+      gain.connect(audioCtxSino.destination);
+      const inicio = audioCtxSino.currentTime + i * 0.12;
+      osc.start(inicio);
+      gain.gain.exponentialRampToValueAtTime(0.0001, inicio + 0.18);
+      osc.stop(inicio + 0.18);
+    });
+  }
+
+  // Som de "boas-vindas" quando alguém novo entra no escritório inteiro (não só na sua sala)
+  function tocarSomNovaPessoa(){
+    if(!audioCtxSino) return;
+    if(audioCtxSino.state === 'suspended') audioCtxSino.resume();
+    [523, 659, 784].forEach((freq, i) => {
+      const osc = audioCtxSino.createOscillator();
+      const gain = audioCtxSino.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.value = 0.1;
+      osc.connect(gain);
+      gain.connect(audioCtxSino.destination);
+      const inicio = audioCtxSino.currentTime + i * 0.08;
+      osc.start(inicio);
+      gain.gain.exponentialRampToValueAtTime(0.0001, inicio + 0.25);
+      osc.stop(inicio + 0.25);
+    });
+  }
+
+  // Som de "toc-toc-toc" pra quem bate na porta de uma sala trancada
+  function tocarSomBater(){
+    if(!audioCtxSino || euEstouFocado) return;
+    if(audioCtxSino.state === 'suspended') audioCtxSino.resume();
+    for(let i = 0; i < 3; i++){
+      const osc = audioCtxSino.createOscillator();
+      const gain = audioCtxSino.createGain();
+      osc.type = 'square';
+      osc.frequency.value = 180;
+      gain.gain.value = 0.1;
+      osc.connect(gain);
+      gain.connect(audioCtxSino.destination);
+      const inicio = audioCtxSino.currentTime + i * 0.15;
+      osc.start(inicio);
+      gain.gain.exponentialRampToValueAtTime(0.0001, inicio + 0.08);
+      osc.stop(inicio + 0.08);
+    }
+  }
+
+  const URL_REGEX = /((?:https?:\/\/|www\.)[^\s<>"]+)/gi;
+  const URL_TEST = /^(https?:\/\/|www\.)/i;
+
+  function renderizarTextoComLinks(container, texto){
+    const partes = String(texto).split(URL_REGEX);
+    for(const parte of partes){
+      if(!parte) continue;
+      if(URL_TEST.test(parte)){
+        const link = document.createElement('a');
+        link.href = parte.startsWith('http') ? parte : 'https://' + parte;
+        link.textContent = parte;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.style.color = 'inherit';
+        link.style.textDecoration = 'underline';
+        container.appendChild(link);
+      } else {
+        container.appendChild(document.createTextNode(parte));
+      }
+    }
+  }
+
+  function addMessage(author, text, mine, silencioso){
+    const div = document.createElement('div');
+    div.className = 'msg chamfer-sm ' + (mine ? 'mine' : 'theirs');
+    const a = document.createElement('div');
+    a.className = 'author';
+    a.textContent = author;
+    div.appendChild(a);
+    const corpo = document.createElement('span');
+    renderizarTextoComLinks(corpo, text);
+    div.appendChild(corpo);
+    chatLog.appendChild(div);
+    chatLog.scrollTop = chatLog.scrollHeight;
+
+    if(!silencioso && !chatAberto && author !== 'Sistema' && !mine){
+      mensagensNaoLidas++;
+      atualizarBadgeNaoLidas();
+      tocarSom();
+
+      if(notificacoesPermitidas && (document.hidden || !document.hasFocus())){
+        try {
+          const notif = new Notification('💬 ' + author, { body: text, icon: 'logo.png' });
+          notif.onclick = () => { window.focus(); };
+        } catch(e){ /* alguns navegadores bloqueiam notificação sem interação recente */ }
+      }
+    }
+  }
+
+  function atualizarPainelSala(){
+    const eu = players[myId];
+    const novoId = eu ? eu.roomId : null;
+
+    if(novoId !== currentRoomId){
+      currentRoomId = novoId;
+      chatLog.innerHTML = '';
+      mensagensNaoLidas = 0;
+      atualizarBadgeNaoLidas();
+      if(novoId){
+        statusBadge.textContent = '📍 ' + roomNameById(novoId);
+        addMessage('Sistema', 'Você entrou em ' + roomNameById(novoId) + '.', false);
+      } else {
+        statusBadge.textContent = '📍 Corredor';
+      }
+    }
+
+    if(novoId){
+      const colegas = Object.entries(players)
+        .filter(([id, p]) => id !== myId && p.roomId === novoId)
+        .map(([id, p]) => p.name);
+      chatRoomInfo.textContent = ['Você', ...colegas].join(', ');
+    } else {
+      chatRoomInfo.textContent = '📍 Corredor';
+    }
+
+    atualizarBotaoTranca();
+    atualizarBotaoYoutube();
+  }
+
+  async function conectar(nome, genero){
+    myName = nome;
+    entryError.classList.remove('show');
+    enterBtn.disabled = true;
+    enterBtn.textContent = 'Conectando...';
+    statusBadge.textContent = '📍 Conectando...';
+    ultimaAtividade = Date.now();
+    euEstouAusente = false;
+
+    const serverUrl = await buscarServerUrl();
+    if(!serverUrl){
+      mostrarErroConexao('⚠️ Não foi possível obter o endereço do servidor. Tente novamente em instantes.');
+      return;
+    }
+
+    socket = io(serverUrl, { transports: ['websocket', 'polling'], timeout: 8000 });
+    iniciarMicrofone(); // pede permissão de microfone em paralelo à conexão
+
+    socket.on('connect', () => {
+      entryOverlay.style.display = 'none';
+      enterBtn.disabled = false;
+      enterBtn.textContent = 'Entrar';
+      if(ehDispositivoTouch) joyBase.style.display = 'flex';
+      headerControls.style.display = 'flex';
+      myId = socket.id;
+      socket.emit('entrar', { nome: myName, genero });
+    });
+
+    socket.on('estado', (state) => {
+      const novosIds = Object.keys(state);
+      if(primeiroEstadoRecebido){
+        for(const id of novosIds){
+          if(id !== myId && !idsConhecidos.has(id)) tocarSomNovaPessoa();
+        }
+      } else {
+        primeiroEstadoRecebido = true;
+      }
+      idsConhecidos = new Set(novosIds);
+
+      players = state;
+      atualizarPainelSala();
+      atualizarConexoesDeAudio();
+      totalOnlineBadge.textContent = '👥 ' + novosIds.length + ' online';
+      atualizarPainelOnline();
+    });
+
+    socket.on('salas-trancadas', (dados) => {
+      salasTrancadas = dados || {};
+      atualizarBotaoTranca();
+    });
+
+    socket.on('aviso', (aviso) => {
+      if(aviso && aviso.texto){
+        avisoFixadoTexto.textContent = '📌 ' + aviso.texto + ' — ' + aviso.autor;
+        avisoFixadoEl.classList.add('show');
+      } else {
+        avisoFixadoEl.classList.remove('show');
+      }
+    });
+
+    socket.on('bater-porta', ({ nome }) => {
+      mostrarBatidaNaPorta(nome || 'Alguém');
+    });
+
+    socket.on('mensagem', (msg) => {
+      addMessage(msg.autor, msg.texto, msg.autor === myName);
+    });
+
+    socket.on('historico', ({ roomId, mensagens }) => {
+      if(roomId !== currentRoomId || !mensagens || !mensagens.length) return;
+      for(const m of mensagens){
+        addMessage(m.autor, m.texto, m.autor === myName, true);
+      }
+    });
+
+    socket.on('emote', ({ from, emoji, fixo }) => {
+      if(!from) return;
+      if(!emoji){
+        delete emotesAtivos[from];
+        return;
+      }
+      emotesAtivos[from] = { emoji, expira: fixo ? Infinity : Date.now() + 3000 };
+    });
+
+    socket.on('webrtc-offer', async ({ from, offer }) => {
+      const pc = criarPeerConnection(from);
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socket.emit('webrtc-answer', { to: from, answer });
+    });
+
+    socket.on('webrtc-answer', async ({ from, answer }) => {
+      const pc = peerConnections[from];
+      if(pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
+    });
+
+    socket.on('webrtc-ice', async ({ from, candidate }) => {
+      const pc = peerConnections[from];
+      if(pc){
+        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); }
+        catch(e){ /* candidato fora de ordem, pode ignorar */ }
+      }
+    });
+
+    socket.on('tela-offer', async ({ from, offer }) => {
+      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      screenPeerConnections[from] = pc;
+      pc.onicecandidate = (e) => {
+        if(e.candidate) socket.emit('tela-ice', { to: from, candidate: e.candidate });
+      };
+      pc.ontrack = (event) => {
+        mostrarTelaCompartilhada(from, event.streams[0]);
+      };
+      // Rede de segurança: se a conexão cair de repente (ex: o notebook de
+      // quem compartilhava travou), fecha a visualização mesmo sem aviso explícito.
+      pc.onconnectionstatechange = () => {
+        if(['disconnected', 'failed', 'closed'].includes(pc.connectionState)){
+          esconderTelaCompartilhada(from);
+        }
+      };
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socket.emit('tela-answer', { to: from, answer });
+    });
+
+    socket.on('tela-parou', ({ from }) => {
+      esconderTelaCompartilhada(from);
+      const pc = screenPeerConnections[from];
+      if(pc){ pc.close(); delete screenPeerConnections[from]; }
+    });
+
+    socket.on('tela-answer', async ({ from, answer }) => {
+      const pc = screenPeerConnections[from];
+      if(pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
+    });
+
+    socket.on('tela-ice', async ({ from, candidate }) => {
+      const pc = screenPeerConnections[from];
+      if(pc){
+        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); }
+        catch(e){ /* candidato fora de ordem, pode ignorar */ }
+      }
+    });
+
+    socket.on('fora-do-horario', () => {
+      closedOverlay.style.display = 'flex';
+    });
+
+    socket.on('connect_error', () => {
+      mostrarErroConexao('⚠️ Servidor fora do ar no momento. Tente novamente mais tarde.');
+    });
+
+    socket.on('disconnect', () => {
+      statusBadge.textContent = '🔌 Desconectado';
+      encerrarTodasConexoesAudio();
+      encerrarTodasConexoesTela();
+    });
+  }
+
+  function mostrarErroConexao(mensagem){
+    entryError.textContent = mensagem;
+    entryError.classList.add('show');
+    entryOverlay.style.display = 'flex';
+    joyBase.style.display = 'none';
+    headerControls.style.display = 'none';
+    enterBtn.disabled = false;
+    enterBtn.textContent = 'Entrar';
+    statusBadge.textContent = '⚠️ Servidor indisponível';
+    if(socket){ socket.disconnect(); socket = null; }
+  }
+
+  enterBtn.addEventListener('click', () => {
+    const nome = nameInput.value.trim() || 'Visitante';
+    prepararSom();
+    pedirPermissaoNotificacao();
+    conectar(nome, generoSelecionado);
+  });
+  nameInput.addEventListener('keydown', e => { if(e.key === 'Enter') enterBtn.click(); });
+
+  sendBtn.addEventListener('click', enviarMensagem);
+  chatInput.addEventListener('keydown', e => { if(e.key === 'Enter') enviarMensagem(); });
+  function enviarMensagem(){
+    const text = chatInput.value.trim();
+    if(!text || !socket) return;
+    socket.emit('mensagem', text);
+    chatInput.value = '';
+    ultimaAtividade = Date.now();
+  }
+
+  // ---- Loop de movimento + renderização ----
+  let lastEmit = 0;
+  function update(){
+    if(!socket || !myId || !players[myId]) return;
+    const me = players[myId];
+    let dx = 0, dy = 0;
+    const speed = 3;
+    if(keys['arrowup'] || keys['w']) dy -= speed;
+    if(keys['arrowdown'] || keys['s']) dy += speed;
+    if(keys['arrowleft'] || keys['a']) dx -= speed;
+    if(keys['arrowright'] || keys['d']) dx += speed;
+
+    if(dx !== 0 || dy !== 0){
+      let novoX = Math.max(12, Math.min(W-12, me.x+dx));
+      let novoY = Math.max(12, Math.min(H-12, me.y+dy));
+
+      const salaDestino = roomAt(novoX, novoY);
+      let bloqueadoPor = null;
+      if(salaDestino && salasTrancadas[salaDestino.id] && me.roomId !== salaDestino.id){
+        // sala trancada e eu não estava dentro dela: bloqueia a entrada
+        novoX = me.x;
+        novoY = me.y;
+        bloqueadoPor = salaDestino.id;
+      }
+
+      if(bloqueadoPor !== salaBloqueada){
+        salaBloqueada = bloqueadoPor;
+        knockBtn.classList.toggle('show', !!salaBloqueada);
+      }
+
+      me.x = novoX;
+      me.y = novoY;
+      ultimaAtividade = Date.now();
+
+      const now = performance.now();
+      if(now - lastEmit > 40){
+        socket.emit('mover', { x: me.x, y: me.y });
+        lastEmit = now;
+      }
+    }
+  }
+
+  // Marca "ausente" sozinho depois de alguns minutos sem mover nem digitar
+  const AUSENCIA_LIMITE_MS = 3 * 60 * 1000;
+  setInterval(() => {
+    if(!socket || !myId) return;
+    const deveriaEstarAusente = (Date.now() - ultimaAtividade) > AUSENCIA_LIMITE_MS;
+    if(deveriaEstarAusente !== euEstouAusente){
+      euEstouAusente = deveriaEstarAusente;
+      socket.emit('status', { ausente: euEstouAusente });
+    }
+  }, 15000);
+
+  function drawNameTag(x, topY, text, isMe){
+    ctx.font = 'bold 10px system-ui';
+    const paddingX = 7;
+    const textWidth = ctx.measureText(text).width;
+    const bw = textWidth + paddingX*2;
+    const bh = 16;
+    const bx = x - bw/2;
+    const by = topY - bh - 6;
+
+    drawRoundedRect(bx, by, bw, bh, 6, '#ffffff', null);
+    ctx.beginPath();
+    ctx.moveTo(x-4, by+bh);
+    ctx.lineTo(x+4, by+bh);
+    ctx.lineTo(x, by+bh+6);
+    ctx.closePath();
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+
+    ctx.fillStyle = isMe ? '#c9581e' : '#0e7fae';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, x, by+bh-4);
+    ctx.textAlign = 'left';
+    return by;
+  }
+
+  function drawEmoteBubble(x, nameTagTopY, emoji){
+    const r = 15;
+    const cy = nameTagTopY - r - 5;
+    ctx.beginPath();
+    ctx.arc(x, cy, r, 0, Math.PI*2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.font = '18px system-ui';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, x, cy + 1);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    return cy - r;
+  }
+
+  // Desenha o quadradinho de vídeo (câmera) acima do avatar, se a pessoa
+  // estiver com a câmera ligada — junto/acompanhando o personagem no mapa.
+  function drawVideoAcimaDoAvatar(id, isMe, topoDisponivel){
+    const p = players[id];
+    if(p && p.roomId === 'audiovisual') return topoDisponivel; // usa a barra lateral maior em vez de flutuar
+    const video = isMe ? localVideoEl : remoteMediaEls[id];
+    if(!video || video.readyState < 2) return topoDisponivel;
+    if(isMe && (!camDisponivel || camMutado)) return topoDisponivel;
+    if(!isMe && !(players[id] && players[id].camLigada)) return topoDisponivel;
+
+    const vw = 64, vh = 48, gap = 8, rad = 6;
+    const vx = (isMe ? players[myId].x : players[id].x) - vw/2;
+    const vy = topoDisponivel - gap - vh;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(vx+rad, vy);
+    ctx.arcTo(vx+vw, vy, vx+vw, vy+vh, rad);
+    ctx.arcTo(vx+vw, vy+vh, vx, vy+vh, rad);
+    ctx.arcTo(vx, vy+vh, vx, vy, rad);
+    ctx.arcTo(vx, vy, vx+vw, vy, rad);
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(video, vx, vy, vw, vh);
+    ctx.restore();
+
+    ctx.strokeStyle = isMe ? 'rgba(255,145,82,0.9)' : 'rgba(63,208,255,0.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(vx+rad, vy);
+    ctx.arcTo(vx+vw, vy, vx+vw, vy+vh, rad);
+    ctx.arcTo(vx+vw, vy+vh, vx, vy+vh, rad);
+    ctx.arcTo(vx, vy+vh, vx, vy, rad);
+    ctx.arcTo(vx, vy, vx+vw, vy, rad);
+    ctx.closePath();
+    ctx.stroke();
+
+    return vy;
+  }
+
+  // Desenha o avatar usando a imagem real (menino/menina), conforme o gênero escolhido
+  function drawAvatar(id, p, isMe){
+    const genero = p.genero === 'mulher' ? 'mulher' : 'homem';
+    const img = avatarImages[genero];
+    const targetH = 64;
+
+    // sombra no chão, pra dar sensação de apoio
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + 26, 15, 5, 0, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fill();
+
+    let topY = p.y - targetH/2;
+    if(p.ausente) ctx.globalAlpha = 0.55;
+
+    if(img && img.complete && img.naturalWidth){
+      const ratio = targetH / img.naturalHeight;
+      const w = img.naturalWidth * ratio;
+      ctx.drawImage(img, p.x - w/2, topY, w, targetH);
+    } else {
+      // enquanto a imagem carrega, um círculo simples como substituto
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 10, 0, Math.PI*2);
+      ctx.fillStyle = isMe ? '#ff9152' : '#3fd0ff';
+      ctx.fill();
+      topY = p.y - 16;
+    }
+    ctx.globalAlpha = 1;
+
+    const qualidadeIcon = p.qualidade === 'ruim' ? ' 🔴' : (p.qualidade === 'media' ? ' 🟡' : (p.qualidade === 'boa' ? ' 🟢' : ''));
+    const label = (isMe ? 'Você' : p.name) + (p.ausente ? ' 💤' : '') + (p.focado ? ' 🎧' : '') + qualidadeIcon;
+    const nameTagTopY = drawNameTag(p.x, topY, label, isMe);
+
+    let topoAtual = nameTagTopY;
+    const emote = emotesAtivos[id];
+    if(emote){
+      if(emote.expira > Date.now()){
+        topoAtual = drawEmoteBubble(p.x, nameTagTopY, emote.emoji);
+      } else {
+        delete emotesAtivos[id];
+      }
+    }
+
+    drawVideoAcimaDoAvatar(id, isMe, topoAtual);
+  }
+
+  let zoomAtual = 1;
+  const ZOOM_MIN = 1;
+  const ZOOM_MAX = 2.5;
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.1 : -0.1;
+    zoomAtual = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoomAtual + delta));
+  }, { passive:false });
+
+  function render(){
+    ctx.clearRect(0,0,W,H);
+
+    ctx.save();
+    ctx.translate(W/2, H/2);
+    ctx.scale(zoomAtual, zoomAtual);
+    ctx.translate(-W/2, -H/2);
+
+    // grama ao redor do prédio
+    ctx.fillStyle = '#4a9b5e';
+    ctx.fillRect(0,0,W,H);
+    for(const v of vasos){ drawVaso(v.x, v.y); }
+    for(const g of gramas){ drawGrama(g.x, g.y); }
+
+    // piso do prédio
+    drawRoundedRect(FLOOR.x, FLOOR.y, FLOOR.w, FLOOR.h, 16, '#e7e4f7', null);
+    drawZonas();
+
+    for(const r of rooms){
+      drawRoomPhoto(r);
+    }
+
+    drawRelogio();
+
+    for(const [id, p] of Object.entries(players)){
+      drawAvatar(id, p, id === myId);
+    }
+
+    ctx.restore();
+
+    const eu = players[myId];
+    if(eu && eu.roomId === 'audiovisual'){
+      drawVideoconferenciaSidebar();
+    }
+  }
+
+  // Relógio ao vivo, na parede da Recepção (canto superior direito da sala)
+  function drawRelogio(){
+    const salaRecepcao = rooms.find(r => r.id === 'reception');
+    if(!salaRecepcao) return;
+
+    const agora = new Date();
+    const horas = String(agora.getHours()).padStart(2, '0');
+    const minutos = String(agora.getMinutes()).padStart(2, '0');
+    const texto = '🕐 ' + horas + ':' + minutos;
+
+    ctx.font = 'bold 12px "Space Grotesk", system-ui';
+    const paddingX = 8;
+    const textW = ctx.measureText(texto).width;
+    const boxW = textW + paddingX * 2;
+    const boxH = 22;
+    const x = salaRecepcao.x + salaRecepcao.w - boxW - 8;
+    const y = salaRecepcao.y + 8;
+
+    drawRoundedRect(x, y, boxW, boxH, 5, 'rgba(10,13,22,0.8)', null);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(texto, x + paddingX, y + 15);
+  }
+
+  // Barra lateral com vídeos maiores — só aparece pra quem está na Videoconferência,
+  // mostrando todo mundo que também está lá (fica fixa na tela, não anda com o zoom).
+  function drawVideoconferenciaSidebar(){
+    const ocupantes = Object.entries(players).filter(([, p]) => p.roomId === 'audiovisual');
+    const tileW = 150, tileH = 112, gap = 10, rad = 8;
+    const x = W - tileW - 16;
+    let y = 16;
+
+    for(const [id, p] of ocupantes){
+      const isMe = id === myId;
+      const video = isMe ? localVideoEl : remoteMediaEls[id];
+      if(!video || video.readyState < 2) continue;
+      if(isMe && (!camDisponivel || camMutado)) continue;
+      if(!isMe && !p.camLigada) continue;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(x+rad, y);
+      ctx.arcTo(x+tileW, y, x+tileW, y+tileH, rad);
+      ctx.arcTo(x+tileW, y+tileH, x, y+tileH, rad);
+      ctx.arcTo(x, y+tileH, x, y, rad);
+      ctx.arcTo(x, y, x+tileW, y, rad);
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(video, x, y, tileW, tileH);
+      ctx.restore();
+
+      ctx.strokeStyle = isMe ? 'rgba(255,145,82,0.9)' : 'rgba(63,208,255,0.9)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, tileW, tileH);
+
+      drawRoundedRect(x, y+tileH-20, tileW, 20, 0, 'rgba(10,13,22,0.62)', null);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 11px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(isMe ? 'Você' : p.name, x+tileW/2, y+tileH-6);
+      ctx.textAlign = 'left';
+
+      y += tileH + gap;
+    }
+  }
+
+  function loop(){
+    update();
+    render();
+    requestAnimationFrame(loop);
+  }
+  canvas.focus();
+  loop();
+})();
+</script>
+</body>
+</html>
