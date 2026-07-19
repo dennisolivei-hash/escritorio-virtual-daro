@@ -331,6 +331,13 @@
     </div>
   </div>
 
+  <div id="introVideoOverlay" class="overlay" style="display:none; z-index:50;">
+    <div class="box chamfer" style="max-width:640px; width:100%; padding:16px;">
+      <video id="introVideo" src="videos/entrada.mp4" autoplay playsinline controls style="width:100%; display:block; border-radius:8px; background:#000;"></video>
+      <button id="pularVideoBtn" class="btn-game" style="margin-top:14px; background:none; border:1px solid var(--panel-border); color:var(--cyan);">Pular ⏭</button>
+    </div>
+  </div>
+
   <header>
     <div style="display:flex; align-items:center; gap:10px;">
       <img src="logo.png" alt="DARO Tech" style="height:40px; width:auto; border-radius:6px;" />
@@ -420,7 +427,8 @@
 
   <footer>
     Servidor DARO Tech — disponível em horário comercial (seg-sex, 8h-17h).<br>
-    Tenha o seu escritório virtual, entre em contato com Denis (11) 93083-7493.
+    Tenha o seu escritório virtual, entre em contato com Denis (11) 93083-7493.<br>
+    DARO Tech - Todos os direitos reservados
   </footer>
 </div>
 
@@ -455,6 +463,7 @@
   // Faz o mapa crescer/encolher conforme o tamanho da janela, mantendo nitidez
   // (usa devicePixelRatio pra ficar afiado em telas retina/4K)
   const canvasWrap = document.querySelector('.canvasWrap');
+  let escalaAtual = 1; // guardado pra converter cliques do mouse em coordenadas do mapa
   function ajustarTamanhoCanvas(){
     const larguraDisponivel = canvasWrap.clientWidth || W;
     const alturaMaxima = window.innerHeight * 0.82;
@@ -462,6 +471,7 @@
     const escalaPelaAltura = alturaMaxima / H;
     const escala = Math.min(escalaPelaLargura, escalaPelaAltura, 2.2);
     const dpr = window.devicePixelRatio || 1;
+    escalaAtual = escala;
 
     canvas.width = Math.round(W * escala * dpr);
     canvas.height = Math.round(H * escala * dpr);
@@ -484,8 +494,8 @@
     { id:'diretoria',   name:'Diretoria',        emoji:'📊', x:28,  y:40,  w:225, h:150, img:'images/diretoria.webp' },
     { id:'jogos',       name:'Sala de Jogos',    emoji:'🎮', x:269, y:40,  w:313, h:150, img:'images/jogos.webp' },
     { id:'copa',        name:'Sala de Descanso', emoji:'☕', x:598, y:40,  w:267, h:150, img:'images/descanso.jpg' },
-    { id:'privativa1',  name:'Sala Privada 1', emoji:'🔐', x:140, y:230, w:130, h:70,  img:'images/privativa.jpg' },
-    { id:'privativa2',  name:'Sala Privada 2', emoji:'🔐', x:140, y:310, w:130, h:70,  img:'images/privativa.jpg' },
+    { id:'privativa1',  name:'Sala Foco 1', emoji:'🔐', x:140, y:230, w:130, h:70,  img:'images/privativa.jpg' },
+    { id:'privativa2',  name:'Sala Foco 2', emoji:'🔐', x:140, y:310, w:130, h:70,  img:'images/privativa.jpg' },
     { id:'reuniao',     name:'Sala de Reunião',  emoji:'🗂️', x:285, y:230, w:230, h:150, img:'images/reuniao.jpg' },
     { id:'audiovisual', name:'Videoconferência', emoji:'📹', x:530, y:230, w:250, h:150, img:'images/videoconferencia.jpg' },
     { id:'auditorio',   name:'Auditório',        emoji:'🎭', x:160, y:420, w:338, h:190, img:'images/auditorio.png' },
@@ -508,7 +518,9 @@
   carregarAvatarImg('homem', 'images/avatar-homem.png');
   carregarAvatarImg('mulher', 'images/avatar-mulher.png');
 
-  const FLOOR = { x:24, y:24, w:W-48, h:H-48 };
+  // Margem lateral (esquerda/direita) reduzida ao mínimo pra dar mais espaço ao mapa;
+  // a margem de cima/baixo continua igual, com a grama decorativa.
+  const FLOOR = { x:6, y:24, w:W-12, h:H-48 };
 
   // Agrupamento visual por "ala" — puramente decorativo, não afeta detecção de sala
   const zonas = [
@@ -529,10 +541,9 @@
 
   // Corredores — faixas entre as fileiras de salas, com cor diferente do resto do piso
 
-  const vasos = [
-    {x:12,y:100},{x:12,y:325},{x:12,y:550},
-    {x:888,y:100},{x:888,y:325},{x:888,y:550},
-  ];
+  // Vasos das laterais removidos: com a margem lateral menor, o piso passou
+  // a cobrir a área onde eles ficavam.
+  const vasos = [];
   const gramas = [
     {x:150,y:12},{x:450,y:12},{x:750,y:12},
     {x:150,y:638},{x:450,y:638},{x:750,y:638},
@@ -810,6 +821,27 @@
   const entryOverlay = document.getElementById('entryOverlay');
   const entryError = document.getElementById('entryError');
   const closedOverlay = document.getElementById('closedOverlay');
+  const introVideoOverlay = document.getElementById('introVideoOverlay');
+  const introVideo = document.getElementById('introVideo');
+  const pularVideoBtn = document.getElementById('pularVideoBtn');
+
+  // Mostra o vídeo de boas-vindas assim que a pessoa loga, antes de liberar
+  // os controles do mapa. Termina sozinho quando o vídeo acaba, ou no clique em "Pular".
+  function mostrarVideoEntrada(aoTerminar){
+    introVideoOverlay.style.display = 'flex';
+    try { introVideo.currentTime = 0; } catch(e){}
+    introVideo.play().catch(() => { /* autoplay com som pode ser bloqueado; a pessoa usa os controles do vídeo */ });
+
+    function finalizar(){
+      introVideoOverlay.style.display = 'none';
+      introVideo.pause();
+      introVideo.removeEventListener('ended', finalizar);
+      pularVideoBtn.removeEventListener('click', finalizar);
+      if(aoTerminar) aoTerminar();
+    }
+    introVideo.addEventListener('ended', finalizar);
+    pularVideoBtn.addEventListener('click', finalizar);
+  }
   const nameInput = document.getElementById('nameInput');
   const enterBtn = document.getElementById('enterBtn');
   const btnHomem = document.getElementById('btnHomem');
@@ -1605,10 +1637,13 @@
       entryOverlay.style.display = 'none';
       enterBtn.disabled = false;
       enterBtn.textContent = 'Entrar';
-      if(ehDispositivoTouch) joyBase.style.display = 'flex';
-      headerControls.style.display = 'flex';
       myId = socket.id;
       socket.emit('entrar', { nome: myName, genero });
+      // Vídeo de boas-vindas primeiro; só depois aparecem o manche/HUD do escritório.
+      mostrarVideoEntrada(() => {
+        if(ehDispositivoTouch) joyBase.style.display = 'flex';
+        headerControls.style.display = 'flex';
+      });
     });
 
     socket.on('estado', (state) => {
@@ -1871,6 +1906,11 @@
     return cy - r;
   }
 
+  // Ids dos avatares com a câmera "ampliada" (clique pra alternar) —
+  // guarda também onde cada quadradinho foi desenhado, pra detectar o clique.
+  const avataresAmpliados = new Set();
+  let videoBoxesAvatares = {}; // id -> {x,y,w,h} no último frame desenhado
+
   // Desenha o quadradinho de vídeo (câmera) acima do avatar, se a pessoa
   // estiver com a câmera ligada — junto/acompanhando o personagem no mapa.
   function drawVideoAcimaDoAvatar(id, isMe, topoDisponivel){
@@ -1881,9 +1921,11 @@
     if(isMe && (!camDisponivel || camMutado)) return topoDisponivel;
     if(!isMe && !(players[id] && players[id].camLigada)) return topoDisponivel;
 
-    const vw = 64, vh = 48, gap = 8, rad = 6;
+    const ampliado = avataresAmpliados.has(id);
+    const vw = ampliado ? 176 : 64, vh = ampliado ? 132 : 48, gap = 8, rad = 6;
     const vx = (isMe ? players[myId].x : players[id].x) - vw/2;
     const vy = topoDisponivel - gap - vh;
+    videoBoxesAvatares[id] = { x:vx, y:vy, w:vw, h:vh };
 
     ctx.save();
     ctx.beginPath();
@@ -1969,6 +2011,7 @@
 
   function render(){
     ctx.clearRect(0,0,W,H);
+    videoBoxesAvatares = {};
 
     ctx.save();
     ctx.translate(W/2, H/2);
@@ -2026,12 +2069,16 @@
     ctx.fillText(texto, x + paddingX, y + 15);
   }
 
+  // Ids com o quadro "ampliado" na barra da Videoconferência (clique pra alternar).
+  const tilesAmpliados = new Set();
+  let videoBoxesSidebar = {}; // id -> {x,y,w,h} no último frame desenhado
+
   // Barra lateral com vídeos maiores — só aparece pra quem está na Videoconferência,
   // mostrando todo mundo que também está lá (fica fixa na tela, não anda com o zoom).
   function drawVideoconferenciaSidebar(){
+    videoBoxesSidebar = {};
     const ocupantes = Object.entries(players).filter(([, p]) => p.roomId === 'audiovisual');
-    const tileW = 150, tileH = 112, gap = 10, rad = 8;
-    const x = W - tileW - 16;
+    const gap = 10, rad = 8;
     let y = 16;
 
     for(const [id, p] of ocupantes){
@@ -2040,6 +2087,12 @@
       if(!video || video.readyState < 2) continue;
       if(isMe && (!camDisponivel || camMutado)) continue;
       if(!isMe && !p.camLigada) continue;
+
+      const ampliado = tilesAmpliados.has(id);
+      const tileW = ampliado ? 300 : 150;
+      const tileH = ampliado ? 224 : 112;
+      const x = W - tileW - 16;
+      videoBoxesSidebar[id] = { x, y, w:tileW, h:tileH };
 
       ctx.save();
       ctx.beginPath();
@@ -2067,6 +2120,61 @@
       y += tileH + gap;
     }
   }
+
+  // ---- Clique pra ampliar câmeras (acima do avatar e na barra da Videoconferência) ----
+  canvas.addEventListener('click', (e) => {
+    if(!escalaAtual) return;
+    const rect = canvas.getBoundingClientRect();
+    const cssX = e.clientX - rect.left;
+    const cssY = e.clientY - rect.top;
+
+    // Barra da Videoconferência é desenhada sem o zoom/pan do mapa.
+    const xSidebar = cssX / escalaAtual;
+    const ySidebar = cssY / escalaAtual;
+    for(const [id, box] of Object.entries(videoBoxesSidebar)){
+      if(xSidebar >= box.x && xSidebar <= box.x+box.w && ySidebar >= box.y && ySidebar <= box.y+box.h){
+        if(tilesAmpliados.has(id)) tilesAmpliados.delete(id); else tilesAmpliados.add(id);
+        return;
+      }
+    }
+
+    // Quadradinhos acima dos avatares seguem o zoom/pan aplicado no render().
+    const xMapa = W/2 + (cssX/escalaAtual - W/2) / zoomAtual;
+    const yMapa = H/2 + (cssY/escalaAtual - H/2) / zoomAtual;
+    for(const [id, box] of Object.entries(videoBoxesAvatares)){
+      if(xMapa >= box.x && xMapa <= box.x+box.w && yMapa >= box.y && yMapa <= box.y+box.h){
+        if(avataresAmpliados.has(id)) avataresAmpliados.delete(id); else avataresAmpliados.add(id);
+        return;
+      }
+    }
+  });
+
+  // Cursor de "mãozinha" quando o mouse passa por cima de uma câmera clicável.
+  canvas.addEventListener('mousemove', (e) => {
+    if(!escalaAtual) return;
+    const rect = canvas.getBoundingClientRect();
+    const cssX = e.clientX - rect.left;
+    const cssY = e.clientY - rect.top;
+
+    const xSidebar = cssX / escalaAtual;
+    const ySidebar = cssY / escalaAtual;
+    for(const box of Object.values(videoBoxesSidebar)){
+      if(xSidebar >= box.x && xSidebar <= box.x+box.w && ySidebar >= box.y && ySidebar <= box.y+box.h){
+        canvas.style.cursor = 'pointer';
+        return;
+      }
+    }
+
+    const xMapa = W/2 + (cssX/escalaAtual - W/2) / zoomAtual;
+    const yMapa = H/2 + (cssY/escalaAtual - H/2) / zoomAtual;
+    for(const box of Object.values(videoBoxesAvatares)){
+      if(xMapa >= box.x && xMapa <= box.x+box.w && yMapa >= box.y && yMapa <= box.y+box.h){
+        canvas.style.cursor = 'pointer';
+        return;
+      }
+    }
+    canvas.style.cursor = 'default';
+  });
 
   function loop(){
     update();
